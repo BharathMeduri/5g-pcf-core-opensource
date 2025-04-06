@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,24 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// 5G Network specific colors
+				'5g': {
+					'primary': '#0056b3',
+					'secondary': '#00a3e0',
+					'accent': '#00cc66',
+					'warning': '#ff9900',
+					'error': '#e53935',
+					'success': '#43a047',
+					'amf': '#4285f4',    // Access and Mobility Management Function
+					'smf': '#34a853',    // Session Management Function
+					'upf': '#fbbc05',    // User Plane Function
+					'nrf': '#ea4335',    // Network Repository Function
+					'pcf': '#4e2a84',    // Policy Control Function
+					'udm': '#9c27b0',    // Unified Data Management
+					'ausf': '#3f51b5',   // Authentication Server Function
+					'udr': '#795548',    // Unified Data Repository
+					'background': '#f5f7f9',
 				}
 			},
 			borderRadius: {
@@ -84,11 +103,16 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-signal': {
+					'0%, 100%': { opacity: '1' },
+					'50%': { opacity: '0.5' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-signal': 'pulse-signal 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
 			}
 		}
 	},
