@@ -1,228 +1,113 @@
 
-import { 
-  NetworkFunction, 
-  NetworkTopology, 
-  PcfMetrics, 
-  PcfSession, 
-  PolicyRule, 
-  PolicyType 
-} from "./pcfTypes";
-
-// Mock Network Functions
-export const mockNetworkFunctions: NetworkFunction[] = [
-  {
-    id: "pcf-001",
-    type: "PCF",
-    name: "Policy Control Function",
-    status: "active",
-    ipAddress: "10.10.10.10",
-    connections: [
-      { targetFunction: "smf-001", referencePoint: "N7", status: "active" },
-      { targetFunction: "amf-001", referencePoint: "N15", status: "active" },
-      { targetFunction: "udr-001", referencePoint: "N24", status: "active" },
-      { targetFunction: "nef-001", referencePoint: "N29", status: "active" },
-      { targetFunction: "nwdaf-001", referencePoint: "N36", status: "inactive" },
-    ],
-  },
-  {
-    id: "amf-001",
-    type: "AMF",
-    name: "Access and Mobility Management Function",
-    status: "active",
-    ipAddress: "10.10.10.11",
-    connections: [
-      { targetFunction: "pcf-001", referencePoint: "N15", status: "active" },
-      { targetFunction: "smf-001", referencePoint: "N11", status: "active" },
-    ],
-  },
-  {
-    id: "smf-001",
-    type: "SMF",
-    name: "Session Management Function",
-    status: "active",
-    ipAddress: "10.10.10.12",
-    connections: [
-      { targetFunction: "pcf-001", referencePoint: "N7", status: "active" },
-      { targetFunction: "amf-001", referencePoint: "N11", status: "active" },
-      { targetFunction: "upf-001", referencePoint: "N4", status: "active" },
-    ],
-  },
-  {
-    id: "upf-001",
-    type: "UPF",
-    name: "User Plane Function",
-    status: "active",
-    ipAddress: "10.10.10.13",
-    connections: [
-      { targetFunction: "smf-001", referencePoint: "N4", status: "active" },
-    ],
-  },
-  {
-    id: "udr-001",
-    type: "UDR",
-    name: "Unified Data Repository",
-    status: "active",
-    ipAddress: "10.10.10.14",
-    connections: [
-      { targetFunction: "pcf-001", referencePoint: "N24", status: "active" },
-    ],
-  },
-  {
-    id: "nef-001",
-    type: "NEF",
-    name: "Network Exposure Function",
-    status: "degraded",
-    ipAddress: "10.10.10.15",
-    connections: [
-      { targetFunction: "pcf-001", referencePoint: "N29", status: "active" },
-    ],
-  },
-  {
-    id: "nwdaf-001",
-    type: "NWDAF",
-    name: "Network Data Analytics Function",
-    status: "inactive",
-    ipAddress: "10.10.10.16",
-    connections: [
-      { targetFunction: "pcf-001", referencePoint: "N36", status: "inactive" },
-    ],
-  },
-];
-
-// Mock Network Topology
-export const mockNetworkTopology: NetworkTopology = {
-  nodes: [
-    { id: "pcf-001", type: "PCF", name: "PCF", status: "active", x: 400, y: 250 },
-    { id: "amf-001", type: "AMF", name: "AMF", status: "active", x: 250, y: 150 },
-    { id: "smf-001", type: "SMF", name: "SMF", status: "active", x: 550, y: 150 },
-    { id: "upf-001", type: "UPF", name: "UPF", status: "active", x: 550, y: 350 },
-    { id: "udr-001", type: "UDR", name: "UDR", status: "active", x: 250, y: 350 },
-    { id: "nef-001", type: "NEF", name: "NEF", status: "degraded", x: 400, y: 100 },
-    { id: "nwdaf-001", type: "NWDAF", name: "NWDAF", status: "inactive", x: 400, y: 400 },
-  ],
-  links: [
-    { id: "link-1", source: "pcf-001", target: "smf-001", referencePoint: "N7", status: "active" },
-    { id: "link-2", source: "pcf-001", target: "amf-001", referencePoint: "N15", status: "active" },
-    { id: "link-3", source: "pcf-001", target: "udr-001", referencePoint: "N24", status: "active" },
-    { id: "link-4", source: "pcf-001", target: "nef-001", referencePoint: "N29", status: "active" },
-    { id: "link-5", source: "pcf-001", target: "nwdaf-001", referencePoint: "N36", status: "inactive" },
-    { id: "link-6", source: "smf-001", target: "upf-001", referencePoint: "N4", status: "active" },
-    { id: "link-7", source: "smf-001", target: "amf-001", referencePoint: "N11", status: "active" },
-  ],
-};
-
-// Mock PCF Metrics
-export const mockPcfMetrics: PcfMetrics = {
-  activeSessions: 12583,
-  sessionEstablishmentRate: 42.7,
-  sessionModificationRate: 18.3,
-  sessionReleaseRate: 38.9,
-  policyEvaluationsPerSecond: 235.6,
-  averagePolicyEvaluationTime: 8.3,
-  numberOfActivePolicies: 48,
-  cpuUtilization: 38,
-  memoryUtilization: 45,
-  diskUtilization: 22,
-};
+import { PolicyRule, PolicyType } from "./pcfTypes";
 
 // Mock Policy Rules
 export const mockPolicyRules: PolicyRule[] = [
   {
-    id: "policy-001",
-    name: "Premium Subscriber QoS",
-    description: "Guarantees high QoS for premium subscribers",
-    type: PolicyType.QoS,
-    precedence: 10,
+    id: "pol-001",
+    name: "Default Internet Access",
+    description: "Default policy for Internet access with fair usage limits",
+    type: PolicyType.SM,
+    precedence: 1000,
     conditions: [
       {
         id: "cond-001",
-        type: "subscriberGroup",
-        parameters: { group: "premium" },
+        type: "applicationId",
+        parameters: {
+          appId: "internet",
+        },
       },
     ],
     actions: [
       {
         id: "act-001",
         type: "applyQoS",
-        parameters: { 
-          qosIndex: 5, 
-          guaranteedBitRate: 50000, 
+        parameters: {
+          qosIndex: 9,
+          guaranteedBitRate: 0,
           maximumBitRate: 100000,
-          packetDelayBudget: 100,
         },
       },
     ],
     status: "active",
-    createdAt: "2025-03-12T10:00:00Z",
-    updatedAt: "2025-04-01T15:30:00Z",
+    createdAt: "2023-03-15T12:00:00Z",
+    updatedAt: "2023-03-15T12:00:00Z",
   },
   {
-    id: "policy-002",
-    name: "Streaming Video Optimization",
-    description: "Optimizes QoS for video streaming applications",
+    id: "pol-002",
+    name: "Video Streaming Optimization",
+    description: "Policy for video streaming services with QoS guarantees",
     type: PolicyType.QoS,
-    precedence: 20,
+    precedence: 500,
     conditions: [
       {
         id: "cond-002",
         type: "applicationId",
-        parameters: { appIds: ["streaming-video", "video-conferencing"] },
+        parameters: {
+          appId: "video-streaming",
+        },
       },
     ],
     actions: [
       {
         id: "act-002",
         type: "applyQoS",
-        parameters: { 
-          qosIndex: 3, 
-          guaranteedBitRate: 10000, 
-          maximumBitRate: 30000,
-          packetDelayBudget: 150,
+        parameters: {
+          qosIndex: 6,
+          guaranteedBitRate: 5000,
+          maximumBitRate: 20000,
+          packetDelayBudget: 100,
         },
       },
     ],
     status: "active",
-    createdAt: "2025-03-15T14:20:00Z",
-    updatedAt: "2025-04-02T09:15:00Z",
+    createdAt: "2023-03-20T10:00:00Z",
+    updatedAt: "2023-04-02T15:30:00Z",
   },
   {
-    id: "policy-003",
-    name: "IoT Device Rate Limiting",
-    description: "Limits bandwidth for IoT devices",
-    type: PolicyType.SM,
-    precedence: 30,
+    id: "pol-003",
+    name: "VoLTE Service",
+    description: "Policy for Voice over LTE service",
+    type: PolicyType.QoS,
+    precedence: 100,
     conditions: [
       {
         id: "cond-003",
-        type: "deviceType",
-        parameters: { deviceTypes: ["iot", "sensor"] },
+        type: "applicationId",
+        parameters: {
+          appId: "volte",
+        },
       },
     ],
     actions: [
       {
         id: "act-003",
-        type: "rate-limit",
-        parameters: { maxBitRateKbps: 1000 },
+        type: "applyQoS",
+        parameters: {
+          qosIndex: 1,
+          guaranteedBitRate: 128,
+          maximumBitRate: 256,
+          packetDelayBudget: 100,
+          packetErrorRate: 0.00001,
+        },
       },
     ],
     status: "active",
-    createdAt: "2025-03-18T08:40:00Z",
-    updatedAt: "2025-03-18T08:40:00Z",
+    createdAt: "2023-03-25T09:15:00Z",
+    updatedAt: "2023-03-25T09:15:00Z",
   },
   {
-    id: "policy-004",
-    name: "Off-peak Hours Boost",
-    description: "Increases bandwidth during off-peak hours",
-    type: PolicyType.QoS,
-    precedence: 40,
+    id: "pol-004",
+    name: "Enterprise Access",
+    description: "Policy for enterprise customer access",
+    type: PolicyType.SM,
+    precedence: 200,
     conditions: [
       {
         id: "cond-004",
-        type: "time",
-        parameters: { 
-          startTime: "22:00:00", 
-          endTime: "06:00:00", 
-          daysOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] 
+        type: "subscriberGroup",
+        parameters: {
+          groupId: "enterprise-customers",
         },
       },
     ],
@@ -230,152 +115,205 @@ export const mockPolicyRules: PolicyRule[] = [
       {
         id: "act-004",
         type: "applyQoS",
-        parameters: { 
-          qosIndex: 2, 
+        parameters: {
+          qosIndex: 8,
+          guaranteedBitRate: 10000,
           maximumBitRate: 50000,
         },
       },
     ],
-    status: "inactive",
-    createdAt: "2025-03-20T16:10:00Z",
-    updatedAt: "2025-03-25T11:05:00Z",
+    status: "active",
+    createdAt: "2023-04-10T11:30:00Z",
+    updatedAt: "2023-04-10T11:30:00Z",
   },
   {
-    id: "policy-005",
-    name: "Emergency Services Priority",
-    description: "Ensures priority for emergency service traffic",
+    id: "pol-005",
+    name: "IoT Devices",
+    description: "Policy for IoT devices with low bandwidth needs",
     type: PolicyType.AM,
-    precedence: 5,
+    precedence: 300,
     conditions: [
       {
         id: "cond-005",
-        type: "applicationId",
-        parameters: { appIds: ["emergency-services", "public-safety"] },
+        type: "deviceType",
+        parameters: {
+          deviceCategory: "iot",
+        },
       },
     ],
     actions: [
       {
         id: "act-005",
         type: "applyQoS",
-        parameters: { 
-          qosIndex: 1, 
-          priority: 1,
-          packetDelayBudget: 50,
+        parameters: {
+          qosIndex: 9,
+          guaranteedBitRate: 10,
+          maximumBitRate: 100,
         },
       },
     ],
     status: "active",
-    createdAt: "2025-03-05T09:30:00Z",
-    updatedAt: "2025-03-05T09:30:00Z",
+    createdAt: "2023-04-15T08:45:00Z",
+    updatedAt: "2023-04-15T08:45:00Z",
+  },
+  {
+    id: "pol-006",
+    name: "Gaming Service",
+    description: "Policy for online gaming with low latency",
+    type: PolicyType.QoS,
+    precedence: 400,
+    conditions: [
+      {
+        id: "cond-006",
+        type: "applicationId",
+        parameters: {
+          appId: "gaming",
+        },
+      },
+    ],
+    actions: [
+      {
+        id: "act-006",
+        type: "applyQoS",
+        parameters: {
+          qosIndex: 7,
+          guaranteedBitRate: 1000,
+          maximumBitRate: 5000,
+          packetDelayBudget: 50,
+        },
+      },
+    ],
+    status: "inactive",
+    createdAt: "2023-04-20T14:20:00Z",
+    updatedAt: "2023-04-20T14:20:00Z",
+  },
+  {
+    id: "pol-007",
+    name: "Emergency Services",
+    description: "Policy for emergency service access",
+    type: PolicyType.AM,
+    precedence: 50,
+    conditions: [
+      {
+        id: "cond-007",
+        type: "applicationId",
+        parameters: {
+          appId: "emergency",
+        },
+      },
+    ],
+    actions: [
+      {
+        id: "act-007",
+        type: "applyQoS",
+        parameters: {
+          qosIndex: 1,
+          guaranteedBitRate: 256,
+          maximumBitRate: 1000,
+          priority: 1,
+        },
+      },
+    ],
+    status: "active",
+    createdAt: "2023-04-25T17:00:00Z",
+    updatedAt: "2023-04-25T17:00:00Z",
+  },
+  {
+    id: "pol-008",
+    name: "Time-Based Throttling",
+    description: "Throttle non-essential traffic during peak hours",
+    type: PolicyType.SM,
+    precedence: 600,
+    conditions: [
+      {
+        id: "cond-008",
+        type: "time",
+        parameters: {
+          startTime: "18:00",
+          endTime: "22:00",
+          daysOfWeek: ["MON", "TUE", "WED", "THU", "FRI"],
+        },
+      },
+    ],
+    actions: [
+      {
+        id: "act-008",
+        type: "rate-limit",
+        parameters: {
+          maxBitRate: 2000,
+          burstSize: 1024,
+        },
+      },
+    ],
+    status: "active",
+    createdAt: "2023-05-01T09:30:00Z",
+    updatedAt: "2023-05-01T09:30:00Z",
+  },
+  {
+    id: "pol-009",
+    name: "Location-Based Policy",
+    description: "Special policy for specific location areas",
+    type: PolicyType.UE,
+    precedence: 700,
+    conditions: [
+      {
+        id: "cond-009",
+        type: "location",
+        parameters: {
+          areaIds: ["area-001", "area-002"],
+          areaType: "TAI",
+        },
+      },
+    ],
+    actions: [
+      {
+        id: "act-009",
+        type: "applyQoS",
+        parameters: {
+          qosIndex: 8,
+          maximumBitRate: 50000,
+        },
+      },
+    ],
+    status: "inactive",
+    createdAt: "2023-05-10T11:15:00Z",
+    updatedAt: "2023-05-10T11:15:00Z",
+  },
+  {
+    id: "pol-010",
+    name: "Roaming Users",
+    description: "Policy for users in roaming scenarios",
+    type: PolicyType.URSP,
+    precedence: 800,
+    conditions: [
+      {
+        id: "cond-010",
+        type: "custom",
+        parameters: {
+          isRoaming: true,
+        },
+      },
+    ],
+    actions: [
+      {
+        id: "act-010",
+        type: "applyQoS",
+        parameters: {
+          qosIndex: 9,
+          maximumBitRate: 5000,
+        },
+      },
+      {
+        id: "act-010b",
+        type: "notify",
+        parameters: {
+          notificationType: "roaming-usage",
+          notificationInterval: 3600,
+        },
+      },
+    ],
+    status: "draft",
+    createdAt: "2023-05-15T16:40:00Z",
+    updatedAt: "2023-05-15T16:40:00Z",
   },
 ];
-
-// Mock PCF Sessions
-export const mockPcfSessions: PcfSession[] = [
-  {
-    id: "session-001",
-    supi: "imsi-310150123456789",
-    policyRules: ["policy-001"],
-    status: "active",
-    createdAt: "2025-04-05T14:30:22Z",
-    updatedAt: "2025-04-05T14:30:22Z",
-    qosParameters: {
-      qosIndex: 5,
-      guaranteedBitRate: 50000,
-      maximumBitRate: 100000,
-      packetDelayBudget: 100,
-      packetErrorRate: 0.000001,
-      priority: 15,
-      averagingWindow: 2000,
-    },
-    relatedNetworkFunctions: [
-      { type: "AMF", id: "amf-001" },
-      { type: "SMF", id: "smf-001" },
-    ],
-  },
-  {
-    id: "session-002",
-    supi: "imsi-310150123456790",
-    policyRules: ["policy-002"],
-    status: "active",
-    createdAt: "2025-04-05T15:12:45Z",
-    updatedAt: "2025-04-05T15:15:10Z",
-    qosParameters: {
-      qosIndex: 3,
-      guaranteedBitRate: 10000,
-      maximumBitRate: 30000,
-      packetDelayBudget: 150,
-      packetErrorRate: 0.00001,
-      priority: 25,
-      averagingWindow: 2000,
-    },
-    relatedNetworkFunctions: [
-      { type: "AMF", id: "amf-001" },
-      { type: "SMF", id: "smf-001" },
-    ],
-  },
-  {
-    id: "session-003",
-    supi: "imsi-310150123456791",
-    policyRules: ["policy-003"],
-    status: "active",
-    createdAt: "2025-04-05T16:03:18Z",
-    updatedAt: "2025-04-05T16:03:18Z",
-    qosParameters: {
-      qosIndex: 9,
-      maximumBitRate: 1000,
-      packetDelayBudget: 300,
-      packetErrorRate: 0.0001,
-      priority: 50,
-      averagingWindow: 2000,
-    },
-    relatedNetworkFunctions: [
-      { type: "AMF", id: "amf-001" },
-      { type: "SMF", id: "smf-001" },
-    ],
-  },
-  {
-    id: "session-004",
-    supi: "imsi-310150123456792",
-    policyRules: ["policy-005"],
-    status: "active",
-    createdAt: "2025-04-05T16:45:32Z",
-    updatedAt: "2025-04-05T16:45:32Z",
-    qosParameters: {
-      qosIndex: 1,
-      guaranteedBitRate: 20000,
-      maximumBitRate: 40000,
-      packetDelayBudget: 50,
-      packetErrorRate: 0.0000001,
-      priority: 1,
-      averagingWindow: 2000,
-    },
-    relatedNetworkFunctions: [
-      { type: "AMF", id: "amf-001" },
-      { type: "SMF", id: "smf-001" },
-    ],
-  },
-  {
-    id: "session-005",
-    supi: "imsi-310150123456793",
-    policyRules: [],
-    status: "pending",
-    createdAt: "2025-04-05T17:20:14Z",
-    updatedAt: "2025-04-05T17:20:14Z",
-    relatedNetworkFunctions: [
-      { type: "AMF", id: "amf-001" },
-    ],
-  },
-];
-
-// Mock historical data for charts
-export const mockHistoricalPcfMetrics = {
-  timestamps: [
-    "2025-04-05T12:00:00Z", "2025-04-05T13:00:00Z", "2025-04-05T14:00:00Z", 
-    "2025-04-05T15:00:00Z", "2025-04-05T16:00:00Z", "2025-04-05T17:00:00Z"
-  ],
-  activeSessions: [12100, 12250, 12400, 12520, 12560, 12583],
-  policyEvaluations: [220, 228, 235, 242, 238, 235],
-  cpuUtilization: [32, 35, 38, 42, 40, 38],
-  memoryUtilization: [39, 42, 44, 45, 46, 45],
-};
