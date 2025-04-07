@@ -1,4 +1,3 @@
-
 import { 
   NpcfSmPolicyCreateRequest, 
   NpcfSmPolicyResponse,
@@ -10,6 +9,7 @@ import {
   UsageMonitoringDecision,
   PolicyControlRequestTrigger 
 } from "./smPolicyTypes";
+import { retrievePolicyDataFromUdr } from "./udrDiscovery";
 
 /**
  * Process Npcf_SMPolicy Create request from SMF
@@ -30,13 +30,23 @@ export async function processSmPolicyCreate(
     // 2. Generate a unique policy ID
     const policyId = generatePolicyId();
     
-    // 3. Apply policy rules based on the context data
-    const policyDecision = createPolicyDecision(request, policyId);
+    // 3. Discover UDR and retrieve subscription data
+    console.log("Discovering UDR and retrieving subscription data...");
+    const udrResponse = await retrievePolicyDataFromUdr(request.smPolicyContextData);
     
-    // 4. Log policy decision for audit
+    if (!udrResponse.success) {
+      console.warn(`UDR data retrieval issue: ${udrResponse.error}. Proceeding with default policies.`);
+    } else {
+      console.log("Successfully retrieved policy data from UDR:", udrResponse.subscriptionData);
+    }
+    
+    // 4. Apply policy rules based on the context data and UDR subscription data
+    const policyDecision = createPolicyDecision(request, policyId, udrResponse.subscriptionData);
+    
+    // 5. Log policy decision for audit
     console.log("SM Policy Decision created:", policyDecision);
     
-    // 5. Return the policy decision response
+    // 6. Return the policy decision response
     return {
       status: "SUCCESS",
       data: policyDecision
@@ -101,9 +111,13 @@ function generatePolicyId(): string {
 }
 
 /**
- * Create a policy decision based on the request context
+ * Create a policy decision based on the request context and subscription data
  */
-function createPolicyDecision(request: NpcfSmPolicyCreateRequest, policyId: string): SmPolicyDecision {
+function createPolicyDecision(
+  request: NpcfSmPolicyCreateRequest, 
+  policyId: string,
+  subscriptionData?: Record<string, any>
+): SmPolicyDecision {
   const { smPolicyContextData } = request;
   
   // Default session rule
@@ -129,7 +143,33 @@ function createPolicyDecision(request: NpcfSmPolicyCreateRequest, policyId: stri
     }
   };
   
-  // PCC Rules - Different rules based on DNN
+  // Apply subscription-specific QoS if available from UDR
+  if (subscriptionData?.policyData?.smPolicyData?.smPolicySnssaiData) {
+    // Extract slice identifiers from request
+    const sst = smPolicyContextData.sliceInfo?.sst || 1;
+    const sd = smPolicyContextData.sliceInfo?.sd || "000001";
+    const dnn = smPolicyContextData.dnn;
+    
+    // Try to find matching policy data in subscription
+    const sliceKey = `${sst}-${sd}`;
+    const sliceData = subscriptionData.policyData.smPolicyData.smPolicySnssaiData[sliceKey];
+    
+    if (sliceData?.smPolicyDnnData?.[dnn]) {
+      const dnnPolicy = sliceData.smPolicyDnnData[dnn];
+      
+      // Apply subscription AMBR if available
+      if (dnnPolicy.maxBrUl && dnnPolicy.maxBrDl) {
+        sessionRules["sess-rule-1"].authSessAmbr = {
+          uplink: dnnPolicy.maxBrUl,
+          downlink: dnnPolicy.maxBrDl
+        };
+        
+        console.log(`Applied subscription AMBR from UDR: UL=${dnnPolicy.maxBrUl}, DL=${dnnPolicy.maxBrDl}`);
+      }
+    }
+  }
+  
+  // PCC Rules - Different rules based on DNN and subscription data
   const pccRules: Record<string, PccRule> = {};
   
   // Apply DNN-specific policies
@@ -161,6 +201,37 @@ function createPolicyDecision(request: NpcfSmPolicyCreateRequest, policyId: stri
       refQosData: ["qos-mms"],
       refChgData: ["chg-mms"]
     };
+  }
+  
+  // Add subscription category specific rules if available from UDR
+  const subscriberCategories = 
+    subscriptionData?.policyData?.uePolicy?.subscCats || 
+    subscriptionData?.policyData?.smPolicyData?.smPolicySnssaiData?.[`${smPolicyContextData.sliceInfo?.sst || 1}-${smPolicyContextData.sliceInfo?.sd || "000001"}`]?.smPolicyDnnData?.[smPolicyContextData.dnn]?.subscCats || 
+    [];
+  
+  if (subscriberCategories.includes("premium")) {
+    pccRules["pcc-rule-premium"] = {
+      pccRuleId: "pcc-rule-premium",
+      appId: "premium-services",
+      precedence: 50,
+      refQosData: ["qos-premium"],
+      refChgData: ["chg-premium"]
+    };
+    
+    console.log("Applied premium subscriber policy from UDR data");
+  }
+  
+  if (subscriberCategories.includes("streaming")) {
+    pccRules["pcc-rule-streaming"] = {
+      pccRuleId: "pcc-rule-streaming",
+      appId: "video-streaming",
+      precedence: 200,
+      refQosData: ["qos-streaming"],
+      refChgData: ["chg-streaming"],
+      refTcData: ["tc-streaming"]
+    };
+    
+    console.log("Applied streaming subscriber policy from UDR data");
   }
   
   // QoS Decisions based on the selected PCC rules
@@ -216,6 +287,42 @@ function createPolicyDecision(request: NpcfSmPolicyCreateRequest, policyId: stri
     };
   }
   
+  if (pccRules["pcc-rule-premium"]) {
+    qosDecs["qos-premium"] = {
+      qosId: "qos-premium",
+      qosParams: {
+        qos5qi: 7,
+        maxbrUl: "100 Mbps",
+        maxbrDl: "500 Mbps",
+        gbrUl: "20 Mbps",
+        gbrDl: "50 Mbps",
+        arp: {
+          priorityLevel: 1,
+          preemptCap: "NOT_PREEMPT",
+          preemptVuln: "NOT_PREEMPTABLE"
+        }
+      }
+    };
+  }
+  
+  if (pccRules["pcc-rule-streaming"]) {
+    qosDecs["qos-streaming"] = {
+      qosId: "qos-streaming",
+      qosParams: {
+        qos5qi: 2,
+        maxbrUl: "5 Mbps",
+        maxbrDl: "50 Mbps",
+        gbrUl: "2 Mbps",
+        gbrDl: "25 Mbps",
+        arp: {
+          priorityLevel: 4,
+          preemptCap: "NOT_PREEMPT",
+          preemptVuln: "PREEMPTABLE"
+        }
+      }
+    };
+  }
+  
   // Charging decisions based on the selected PCC rules
   const chgDecs: Record<string, ChargingDecision> = {};
   
@@ -250,6 +357,26 @@ function createPolicyDecision(request: NpcfSmPolicyCreateRequest, policyId: stri
     };
   }
   
+  if (pccRules["pcc-rule-premium"]) {
+    chgDecs["chg-premium"] = {
+      chgId: "chg-premium",
+      offline: true,
+      online: true,
+      ratingGroup: 900,
+      serviceId: 9
+    };
+  }
+  
+  if (pccRules["pcc-rule-streaming"]) {
+    chgDecs["chg-streaming"] = {
+      chgId: "chg-streaming",
+      offline: true,
+      online: true,
+      ratingGroup: 400,
+      serviceId: 4
+    };
+  }
+  
   // Create policy triggers based on subscription data
   const policyCtrlReqTriggers: PolicyControlRequestTrigger[] = [
     PolicyControlRequestTrigger.PLMN_CH,
@@ -272,9 +399,193 @@ function createPolicyDecision(request: NpcfSmPolicyCreateRequest, policyId: stri
     chgDecs,
     policyCtrlReqTriggers,
     revalidationTime: getRevalidationTime(),
-    online: Object.values(chgDecs).some(chg => chg.online),
-    offline: Object.values(chgDecs).some(chg => chg.offline)
+    online: true,
+    offline: true,
+    udrInfo: {
+      accessed: !!subscriptionData,
+      dataApplied: !!subscriptionData
+    }
   };
+}
+
+/**
+ * Create QoS decisions based on the PCC rules and subscriber categories
+ */
+function createQosDecisions(
+  pccRules: Record<string, PccRule>,
+  subscriberCategories: string[]
+): Record<string, QosDecision> {
+  const qosDecs: Record<string, QosDecision> = {};
+  
+  if (pccRules["pcc-rule-internet"]) {
+    qosDecs["qos-internet"] = {
+      qosId: "qos-internet",
+      qosParams: {
+        qos5qi: 9,
+        maxbrUl: "50 Mbps",
+        maxbrDl: "200 Mbps",
+        arp: {
+          priorityLevel: 8,
+          preemptCap: "NOT_PREEMPT",
+          preemptVuln: "PREEMPTABLE"
+        }
+      }
+    };
+  }
+  
+  if (pccRules["pcc-rule-ims"]) {
+    qosDecs["qos-ims"] = {
+      qosId: "qos-ims",
+      qosParams: {
+        qos5qi: 5,
+        maxbrUl: "2 Mbps",
+        maxbrDl: "2 Mbps",
+        gbrUl: "500 kbps",
+        gbrDl: "500 kbps",
+        arp: {
+          priorityLevel: 1,
+          preemptCap: "NOT_PREEMPT",
+          preemptVuln: "NOT_PREEMPTABLE"
+        }
+      }
+    };
+  }
+  
+  if (pccRules["pcc-rule-mms"]) {
+    qosDecs["qos-mms"] = {
+      qosId: "qos-mms",
+      qosParams: {
+        qos5qi: 6,
+        maxbrUl: "10 Mbps",
+        maxbrDl: "10 Mbps",
+        arp: {
+          priorityLevel: 6,
+          preemptCap: "NOT_PREEMPT",
+          preemptVuln: "PREEMPTABLE"
+        }
+      }
+    };
+  }
+  
+  if (pccRules["pcc-rule-premium"]) {
+    qosDecs["qos-premium"] = {
+      qosId: "qos-premium",
+      qosParams: {
+        qos5qi: 7,
+        maxbrUl: "100 Mbps",
+        maxbrDl: "500 Mbps",
+        gbrUl: "20 Mbps",
+        gbrDl: "50 Mbps",
+        arp: {
+          priorityLevel: 1,
+          preemptCap: "NOT_PREEMPT",
+          preemptVuln: "NOT_PREEMPTABLE"
+        }
+      }
+    };
+  }
+  
+  if (pccRules["pcc-rule-streaming"]) {
+    qosDecs["qos-streaming"] = {
+      qosId: "qos-streaming",
+      qosParams: {
+        qos5qi: 2,
+        maxbrUl: "5 Mbps",
+        maxbrDl: "50 Mbps",
+        gbrUl: "2 Mbps",
+        gbrDl: "25 Mbps",
+        arp: {
+          priorityLevel: 4,
+          preemptCap: "NOT_PREEMPT",
+          preemptVuln: "PREEMPTABLE"
+        }
+      }
+    };
+  }
+  
+  return qosDecs;
+}
+
+/**
+ * Create charging decisions based on the PCC rules and subscriber categories
+ */
+function createChargingDecisions(
+  pccRules: Record<string, PccRule>,
+  subscriberCategories: string[]
+): Record<string, ChargingDecision> {
+  const chgDecs: Record<string, ChargingDecision> = {};
+  
+  if (pccRules["pcc-rule-internet"]) {
+    chgDecs["chg-internet"] = {
+      chgId: "chg-internet",
+      offline: true,
+      online: true,
+      ratingGroup: 100,
+      reportingLevel: "SERVICE_IDENTIFIER_LEVEL",
+      serviceId: 1
+    };
+  }
+  
+  if (pccRules["pcc-rule-ims"]) {
+    chgDecs["chg-ims"] = {
+      chgId: "chg-ims",
+      offline: true,
+      online: false,
+      ratingGroup: 200,
+      serviceId: 2
+    };
+  }
+  
+  if (pccRules["pcc-rule-mms"]) {
+    chgDecs["chg-mms"] = {
+      chgId: "chg-mms",
+      offline: true,
+      online: true,
+      ratingGroup: 300,
+      serviceId: 3
+    };
+  }
+  
+  if (pccRules["pcc-rule-premium"]) {
+    chgDecs["chg-premium"] = {
+      chgId: "chg-premium",
+      offline: true,
+      online: true,
+      ratingGroup: 900,
+      serviceId: 9
+    };
+  }
+  
+  if (pccRules["pcc-rule-streaming"]) {
+    chgDecs["chg-streaming"] = {
+      chgId: "chg-streaming",
+      offline: true,
+      online: true,
+      ratingGroup: 400,
+      serviceId: 4
+    };
+  }
+  
+  return chgDecs;
+}
+
+/**
+ * Create traffic control decisions based on the PCC rules
+ */
+function createTrafficControlDecisions(
+  pccRules: Record<string, PccRule>
+): Record<string, TrafficControlDecision> {
+  const traffContDecs: Record<string, TrafficControlDecision> = {};
+  
+  if (pccRules["pcc-rule-streaming"]) {
+    traffContDecs["tc-streaming"] = {
+      tcId: "tc-streaming",
+      flowStatus: "ENABLED",
+      trafficSteeringPolIdDl: "video-steering-policy"
+    };
+  }
+  
+  return traffContDecs;
 }
 
 /**

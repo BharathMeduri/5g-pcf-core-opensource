@@ -1,4 +1,3 @@
-
 // SM Policy Control Types based on 3GPP Release 16 specifications
 // For Npcf_SMPolicy Service
 
@@ -20,6 +19,10 @@ export interface SmPolicyDecision {
   conds?: Record<string, ConditionData>;
   revalidationTime?: string;
   policyCtrlReqTriggers?: PolicyControlRequestTrigger[];
+  udrInfo?: {
+    accessed: boolean;
+    dataApplied: boolean;
+  };
 }
 
 // SM Policy Context Data
