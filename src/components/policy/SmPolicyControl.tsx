@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,12 +21,12 @@ import {
   NpcfSmPolicyCreateRequest, 
   NpcfSmPolicyOperation, 
   NpcfSmPolicyResponse,
-  mockSmPolicyCreateResponse,
   mockSmPolicyContextData,
   RatType,
   QosFlowUsage,
   PolicyControlRequestTrigger,
 } from "@/utils/smPolicyTypes";
+import { processSmPolicyCreate } from "@/utils/smPolicyApi";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -47,7 +46,6 @@ import {
   XCircle
 } from "lucide-react";
 
-// Define schema for the form
 const createPolicyFormSchema = z.object({
   supi: z.string().min(10, "SUPI must be at least 10 characters"),
   pduSessionId: z.coerce.number().int().min(1).max(255),
@@ -74,7 +72,6 @@ const SmPolicyControl: React.FC = () => {
   const [apiResponse, setApiResponse] = useState<NpcfSmPolicyResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Initialize form with default values
   const form = useForm<CreatePolicyFormValues>({
     resolver: zodResolver(createPolicyFormSchema),
     defaultValues: {
@@ -96,12 +93,10 @@ const SmPolicyControl: React.FC = () => {
     },
   });
 
-  // Handle form submission
   const onSubmit = async (values: CreatePolicyFormValues) => {
     setLoading(true);
     
     try {
-      // Construct request payload
       const payload: NpcfSmPolicyCreateRequest = {
         smPolicyContextData: {
           supi: values.supi,
@@ -124,7 +119,7 @@ const SmPolicyControl: React.FC = () => {
           suppFeat: values.suppFeat || undefined,
           refQosIndication: values.refQosIndication,
           qosFlowUsage: values.qosFlowUsage,
-          ueTimeZone: mockSmPolicyContextData.ueTimeZone, // Using default values for these
+          ueTimeZone: mockSmPolicyContextData.ueTimeZone,
           chargingCharacteristics: mockSmPolicyContextData.chargingCharacteristics,
           chfInfo: mockSmPolicyContextData.chfInfo
         }
@@ -132,19 +127,23 @@ const SmPolicyControl: React.FC = () => {
 
       console.log("Sending SM Policy Create Request:", payload);
       
-      // In a real implementation, this would be an API call
-      // For now, we're using a mock response
-      setTimeout(() => {
-        setApiResponse(mockSmPolicyCreateResponse);
-        setLoading(false);
+      const response = await processSmPolicyCreate(payload);
+      setApiResponse(response);
+      
+      if (response.status === "SUCCESS") {
         toast({
           title: "SM Policy Created",
-          description: "Policy decision successfully created for PDU Session",
+          description: `Policy decision with ID: ${response.data?.id} successfully created for PDU Session`,
         });
-      }, 1000);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: response.error?.message || "Failed to create SM Policy",
+        });
+      }
     } catch (error) {
       console.error("Error creating SM Policy:", error);
-      setLoading(false);
       setApiResponse({
         status: "FAILURE",
         error: {
@@ -158,6 +157,8 @@ const SmPolicyControl: React.FC = () => {
         title: "Error",
         description: "Failed to create SM Policy",
       });
+    } finally {
+      setLoading(false);
     }
   };
 

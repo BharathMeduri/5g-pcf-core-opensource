@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import SmPolicyApiDemo from "./pages/SmPolicyApiDemo";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="/sm-policy" element={<Index activeTab="sm-policy" />} />
+          <Route path="/sm-policy-api" element={<SmPolicyApiDemo />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
