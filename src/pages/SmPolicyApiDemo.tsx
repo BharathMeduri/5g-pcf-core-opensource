@@ -5,7 +5,8 @@ import { toast } from "@/hooks/use-toast";
 import CustomCard from "@/components/ui/CustomCard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { NpcfSmPolicyCreateRequest, NpcfSmPolicyResponse } from "@/utils/smPolicyTypes";
+import { Badge } from "@/components/ui/badge";
+import { NpcfSmPolicyCreateRequest, NpcfSmPolicyResponse, RatType, QosFlowUsage } from "@/utils/smPolicyTypes";
 import { processSmPolicyCreate } from "@/utils/smPolicyApi";
 import { Activity, Code, PlayCircle, Bug, Copy } from "lucide-react";
 import { runSmPolicyTests } from "@/utils/smPolicyApiTest";
@@ -26,7 +27,7 @@ const SmPolicyApiDemo: React.FC = () => {
           notificationUri: "https://smf.example.com/callback",
           sliceInfo: { sst: 1, sd: "000001" },
           servingNetwork: { mcc: "234", mnc: "015" },
-          ratType: "NR"
+          ratType: RatType.NR
         }
       }, null, 2)
     }
@@ -120,7 +121,7 @@ const SmPolicyApiDemo: React.FC = () => {
             notificationUri: "https://smf.example.com/callback",
             sliceInfo: { sst: 1, sd: "000001" },
             servingNetwork: { mcc: "234", mnc: "015" },
-            ratType: "NR",
+            ratType: RatType.NR,
             ipv4Address: "10.0.0.1"
           }
         };
@@ -135,8 +136,8 @@ const SmPolicyApiDemo: React.FC = () => {
             notificationUri: "https://smf.example.com/callback",
             sliceInfo: { sst: 1, sd: "000001" },
             servingNetwork: { mcc: "234", mnc: "015" },
-            ratType: "NR",
-            qosFlowUsage: "IMS_SIG"
+            ratType: RatType.NR,
+            qosFlowUsage: QosFlowUsage.IMS_SIG
           }
         };
         break;

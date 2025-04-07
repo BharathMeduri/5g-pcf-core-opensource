@@ -117,8 +117,8 @@ function createPolicyDecision(request: NpcfSmPolicyCreateRequest, policyId: stri
         qosId: 1,
         arp: {
           priorityLevel: 1,
-          preemptCap: "NOT_PREEMPT",
-          preemptVuln: "NOT_PREEMPTABLE"
+          preemptCap: "NOT_PREEMPT" as "NOT_PREEMPT", // Type assertion to match the enum
+          preemptVuln: "NOT_PREEMPTABLE" as "NOT_PREEMPTABLE" // Type assertion to match the enum
         },
         qnc: false,
         priorityLevel: 10,
