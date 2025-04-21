@@ -1,8 +1,8 @@
 
-// Service for processing Diameter Rx interface messages for a Voice/Video/Conference Call
-// (Simplified for demo purposes, not a full Diameter RFC implementation)
+// Service for processing Diameter Rx interface messages for a Voice/Video/Conference Call, including MCPPT and priority support
 
-type MediaType = "voice" | "video" | "data";
+// Extend MediaType to include "mcptt"
+type MediaType = "voice" | "video" | "data" | "mcptt";
 type CallUpgradeType = "NONE" | "VOICE_TO_VIDEO" | "VIDEO_TO_VOICE";
 type ConferenceType = "NONE" | "CONFERENCE";
 
@@ -17,12 +17,16 @@ type RxMessage = {
     maxRequestedBandwidthUL: number; // kbps
     maxRequestedBandwidthDL: number; // kbps
     afApplicationIdentifier?: string;
+    // For MCPTT support: (optional)
+    priorityLevel?: number;
   };
   subscriberId: string;
   qosClassIdentifier: number; // 1 (Voice), 2 (Video), etc.
   // New properties for upgrades/downgrades and conference mode
   callUpgradeType?: CallUpgradeType;
   conferenceType?: ConferenceType;
+  // For explicit priority sharing (optional)
+  prioritySharing?: boolean;
 };
 
 type RxProcessingResult = {
@@ -34,25 +38,30 @@ type RxProcessingResult = {
       classId: number;
       maxBandwidthUL: number;
       maxBandwidthDL: number;
+      // Support for priorityLevel in QoS (optional)
+      priorityLevel?: number;
     };
     subscriberId: string;
     voiceCall: boolean;
     videoCall?: boolean;
+    mcpttCall?: boolean;
     conference?: boolean;
     upgradeType?: CallUpgradeType;
+    // Priority sharing context
+    prioritySharing?: boolean;
   };
 };
 
 /**
- * Process Diameter Rx message for a voice/video/conference call (simplified).
- * Supports: 
- *  - Voice call
- *  - Voice-to-video/video-to-voice upgrade/downgrade
- *  - Conference call
- * @param rxMessage - Diameter Rx request message
+ * Process Diameter Rx message for voice/video/conference/MCPPT call (extended, simplified).
+ * Now supports:
+ *  - Voice call, including conference and upgrades/downgrades
+ *  - Video call
+ *  - Mission Critical Push-To-Talk (MCPPT)
+ *  - Priority sharing for calls
+ * @param rxMessage - Diameter Rx request message (extended)
  */
 export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingResult {
-  // Validate required fields (very basic check)
   if (!rxMessage || !rxMessage.mediaComponentDescription) {
     return {
       allowed: false,
@@ -60,12 +69,12 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
     };
   }
 
-  const { mediaType } = rxMessage.mediaComponentDescription;
+  const { mediaType, maxRequestedBandwidthUL, maxRequestedBandwidthDL, priorityLevel } = rxMessage.mediaComponentDescription;
   const callUpgradeType = rxMessage.callUpgradeType ?? "NONE";
   const conferenceType = rxMessage.conferenceType ?? "NONE";
-  const { maxRequestedBandwidthUL, maxRequestedBandwidthDL } = rxMessage.mediaComponentDescription;
+  const prioritySharing = rxMessage.prioritySharing === true;
 
-  // Voice call validation
+  // --- Voice call validation
   if (mediaType === "voice") {
     if (maxRequestedBandwidthUL > 256 || maxRequestedBandwidthDL > 256) {
       return {
@@ -90,18 +99,18 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
             classId: rxMessage.qosClassIdentifier,
             maxBandwidthUL: maxRequestedBandwidthUL,
             maxBandwidthDL: maxRequestedBandwidthDL,
+            priorityLevel,
           },
           subscriberId: rxMessage.subscriberId,
           voiceCall: true,
           conference: true,
-          upgradeType: callUpgradeType
+          upgradeType: callUpgradeType,
+          prioritySharing,
         }
       };
     }
-
     // Voice-to-video upgrade request handling
     if (callUpgradeType === "VOICE_TO_VIDEO") {
-      // Accept only if bandwidth for video is reasonable
       if (maxRequestedBandwidthUL > 1500 || maxRequestedBandwidthDL > 2000) {
         return {
           allowed: false,
@@ -117,15 +126,16 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
             classId: rxMessage.qosClassIdentifier,
             maxBandwidthUL: maxRequestedBandwidthUL,
             maxBandwidthDL: maxRequestedBandwidthDL,
+            priorityLevel,
           },
           subscriberId: rxMessage.subscriberId,
           voiceCall: true,
           videoCall: true,
-          upgradeType: callUpgradeType
+          upgradeType: callUpgradeType,
+          prioritySharing,
         }
       };
     }
-
     // Standard voice call
     return {
       allowed: true,
@@ -136,15 +146,17 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
           classId: rxMessage.qosClassIdentifier,
           maxBandwidthUL: maxRequestedBandwidthUL,
           maxBandwidthDL: maxRequestedBandwidthDL,
+          priorityLevel,
         },
         subscriberId: rxMessage.subscriberId,
         voiceCall: true,
-        upgradeType: callUpgradeType
+        upgradeType: callUpgradeType,
+        prioritySharing,
       }
     };
   }
 
-  // Video call validation (including downgrade/upgrade cases)
+  // --- Video call validation (including downgrade/upgrade cases)
   if (mediaType === "video") {
     if (maxRequestedBandwidthUL > 2000 || maxRequestedBandwidthDL > 4000) {
       return {
@@ -152,7 +164,6 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
         message: "Requested bandwidth for video call exceeds allowed maximum (2 Mbps UL / 4 Mbps DL)."
       };
     }
-    // Conference video call
     if (conferenceType === "CONFERENCE") {
       if (maxRequestedBandwidthUL > 4000 || maxRequestedBandwidthDL > 8000) {
         return {
@@ -169,19 +180,19 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
             classId: rxMessage.qosClassIdentifier,
             maxBandwidthUL: maxRequestedBandwidthUL,
             maxBandwidthDL: maxRequestedBandwidthDL,
+            priorityLevel,
           },
           subscriberId: rxMessage.subscriberId,
           voiceCall: false,
           videoCall: true,
           conference: true,
-          upgradeType: callUpgradeType
+          upgradeType: callUpgradeType,
+          prioritySharing,
         }
       };
     }
-
     // Video-to-voice downgrade handling
     if (callUpgradeType === "VIDEO_TO_VOICE") {
-      // Accept downgrade if the requested bandwidth falls to voice call range
       if (maxRequestedBandwidthUL > 256 || maxRequestedBandwidthDL > 256) {
         return {
           allowed: false,
@@ -197,15 +208,16 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
             classId: rxMessage.qosClassIdentifier,
             maxBandwidthUL: maxRequestedBandwidthUL,
             maxBandwidthDL: maxRequestedBandwidthDL,
+            priorityLevel,
           },
           subscriberId: rxMessage.subscriberId,
           voiceCall: true,
           videoCall: false,
-          upgradeType: callUpgradeType
+          upgradeType: callUpgradeType,
+          prioritySharing,
         }
       };
     }
-
     // Regular video call
     return {
       allowed: true,
@@ -216,25 +228,91 @@ export function processDiameterRxForVoice(rxMessage: RxMessage): RxProcessingRes
           classId: rxMessage.qosClassIdentifier,
           maxBandwidthUL: maxRequestedBandwidthUL,
           maxBandwidthDL: maxRequestedBandwidthDL,
+          priorityLevel,
         },
         subscriberId: rxMessage.subscriberId,
         voiceCall: false,
         videoCall: true,
-        upgradeType: callUpgradeType
+        upgradeType: callUpgradeType,
+        prioritySharing,
       }
     };
   }
 
-  // Conference call for unsupported media
+  // --- MCPTT (Mission Critical Push-To-Talk) call validation
+  if (mediaType === "mcptt") {
+    // For MCPTT, allow higher bandwidth and require a priorityLevel
+    if (typeof priorityLevel !== "number" || priorityLevel < 1 || priorityLevel > 15) {
+      return {
+        allowed: false,
+        message: "MCPTT call requires a valid priorityLevel (1-15)."
+      };
+    }
+    if (maxRequestedBandwidthUL > 1024 || maxRequestedBandwidthDL > 1024) {
+      return {
+        allowed: false,
+        message: "Requested bandwidth for MCPTT call exceeds allowed maximum (1024 kbps)."
+      };
+    }
+    if (conferenceType === "CONFERENCE") {
+      // For MCPTT conference allow double bandwidth
+      if (maxRequestedBandwidthUL > 2048 || maxRequestedBandwidthDL > 2048) {
+        return {
+          allowed: false,
+          message: "Conference MCPTT call exceeds allowed maximum bandwidth (2048 kbps uplink/downlink)."
+        };
+      }
+      return {
+        allowed: true,
+        message: "Conference MCPTT call allowed with priority sharing.",
+        policyContext: {
+          policyType: "mcptt-conference",
+          qos: {
+            classId: rxMessage.qosClassIdentifier,
+            maxBandwidthUL: maxRequestedBandwidthUL,
+            maxBandwidthDL: maxRequestedBandwidthDL,
+            priorityLevel,
+          },
+          subscriberId: rxMessage.subscriberId,
+          voiceCall: true,
+          mcpttCall: true,
+          conference: true,
+          prioritySharing: true, // MCPTT conferences always enable priority sharing
+        }
+      };
+    }
+    // Standard MCPTT voice call
+    return {
+      allowed: true,
+      message: "MCPTT voice call allowed with priority sharing.",
+      policyContext: {
+        policyType: "mcptt",
+        qos: {
+          classId: rxMessage.qosClassIdentifier,
+          maxBandwidthUL: maxRequestedBandwidthUL,
+          maxBandwidthDL: maxRequestedBandwidthDL,
+          priorityLevel,
+        },
+        subscriberId: rxMessage.subscriberId,
+        voiceCall: true,
+        mcpttCall: true,
+        conference: false,
+        prioritySharing: true,
+      }
+    };
+  }
+
+  // --- Conference fallback for unsupported media
   if (conferenceType === "CONFERENCE") {
     return {
       allowed: false,
-      message: "Conference call only supported for voice and video.",
+      message: "Conference call only supported for voice, video, and MCPTT in this demo.",
     };
   }
 
   return {
     allowed: false,
-    message: "Only voice and video calls are supported in this demo.",
+    message: "Only voice, video, and MCPTT calls are supported in this demo.",
   };
 }
+
